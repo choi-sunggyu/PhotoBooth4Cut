@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN">
+<plist version="1.0">
+<dict>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>4컷 사진을 앨범에 저장합니다</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>4컷 사진을 앨범에 저장합니다</string>
+</dict>
+</plist>
