@@ -1,0 +1,37 @@
+# Unity generated
+Library/
+Temp/
+Obj/
+Logs/
+MemoryCaptures/
+Build/
+Builds/
+
+# Unity cache
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Generated C# solution and project files
+*.csproj
+*.csproj.lscache
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# UserSettings (local user preferences)
+UserSettings/
+
+# OS
+.DS_Store
+Thumbs.db
