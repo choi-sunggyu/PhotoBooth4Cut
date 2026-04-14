@@ -21,7 +21,7 @@ public class ResultManager : MonoBehaviour
 
     [Header("필터")]
     public Transform filterScrollContent;
-    public Slider brightnessSlider;
+    //public Slider brightnessSlider;
     public Slider contrastSlider;
 
     [Header("스티커")]
@@ -50,15 +50,15 @@ public class ResultManager : MonoBehaviour
         LoadFilters();
         LoadStickers();
 
-        brightnessSlider.minValue = -1f;
-        brightnessSlider.maxValue = 1f;
-        brightnessSlider.value    = 0f;
+        // brightnessSlider.minValue = -1f;
+        // brightnessSlider.maxValue = 1f;
+        // brightnessSlider.value    = 0f;
 
         contrastSlider.minValue = 0.5f;
         contrastSlider.maxValue = 2f;
         contrastSlider.value    = 1f;
 
-        brightnessSlider.onValueChanged.AddListener(OnFilterChanged);
+        //brightnessSlider.onValueChanged.AddListener(OnFilterChanged);
         contrastSlider.onValueChanged.AddListener(OnFilterChanged);
     }
 
@@ -227,8 +227,9 @@ public class ResultManager : MonoBehaviour
     // ── 밝기/대비 조절 ──────────────────────
     private void OnFilterChanged(float value)
     {
-        float brightness = brightnessSlider.value;
-        float contrast   = contrastSlider.value;
+        //float brightness = brightnessSlider.value;
+        //float contrast   = contrastSlider.value;
+        float contrast = contrastSlider.value;
 
         Color[] pixels = _baseTexture.GetPixels();
         Color[] result = new Color[pixels.Length];
@@ -238,16 +239,12 @@ public class ResultManager : MonoBehaviour
             Color c = pixels[i];
             // 밝기
             c = new Color(
-                Mathf.Clamp01(c.r + brightness),
-                Mathf.Clamp01(c.g + brightness),
-                Mathf.Clamp01(c.b + brightness),
-                c.a
-            );
-            // 대비
-            c = new Color(
                 Mathf.Clamp01((c.r - 0.5f) * contrast + 0.5f),
                 Mathf.Clamp01((c.g - 0.5f) * contrast + 0.5f),
                 Mathf.Clamp01((c.b - 0.5f) * contrast + 0.5f),
+                // Mathf.Clamp01(c.r + brightness),
+                // Mathf.Clamp01(c.g + brightness),
+                // Mathf.Clamp01(c.b + brightness),
                 c.a
             );
             result[i] = c;
