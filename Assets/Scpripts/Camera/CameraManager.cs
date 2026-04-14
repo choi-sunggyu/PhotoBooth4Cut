@@ -1,12 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using TMPro;
 
 public class CameraManager : MonoBehaviour
 {
     [Header("UI 연결")]
     public RawImage cameraFeedImage;
-    public RawImage[] slots = new RawImage[4];
+    public TextMeshProUGUI counterText;
 
     private WebCamTexture _webCamTexture;
     private Texture2D[] _capturedTextures = new Texture2D[4];
@@ -84,6 +85,9 @@ public class CameraManager : MonoBehaviour
         StartCoroutine(CaptureSlot(_currentSlot));
         _currentSlot++;
 
+        if (counterText != null)
+            counterText.text = _currentSlot + " / 4";
+
         // 4장 완료 시 ResultScene으로 이동
         if (_currentSlot >= 4)
         {
@@ -124,7 +128,6 @@ public class CameraManager : MonoBehaviour
         snapshot.Apply();
 
         _capturedTextures[slotIndex] = snapshot;
-        slots[slotIndex].texture = snapshot;
     }
 
     // 외부에서 촬영된 텍스처 가져갈 때 사용
