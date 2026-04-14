@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/MainScene.unity
+    guid: dc25492b2cb89744db053cbf3b168c09
+  - enabled: 1
     path: Assets/Scenes/ShootingScene.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
   - enabled: 1
@@ -14,9 +17,6 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/FrameEditorScene.unity
     guid: 179ab1d4cf56d7d4e872369efc37c315
-  - enabled: 1
-    path: Assets/Scenes/MainScene.unity
-    guid: dc25492b2cb89744db053cbf3b168c09
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
