@@ -29,8 +29,9 @@ public class ResultManager : MonoBehaviour
         int[] slotX = { 40,  610, 40,  610  };
         int[] slotY = { 1035, 1035, 300, 300 };
 
-        Texture2D frameSource = Resources.Load<Texture2D>("Frames/Default/frame_01");
-
+        Texture2D frameSource = Resources.Load<Texture2D>(
+            "Frames/Default/" + FrameHolder.Instance.GetFrame()
+        );
         RenderTexture rt = RenderTexture.GetTemporary(frameWidth, frameHeight);
         Graphics.Blit(frameSource, rt);
         RenderTexture.active = rt;
