@@ -20,8 +20,22 @@ public class CameraManager : MonoBehaviour
     private void StartCamera()
     {
         WebCamDevice[] devices = WebCamTexture.devices;
-        string targetCam = "";
 
+        // 연결된 카메라 목록 확인
+        foreach (var device in devices)
+        {
+            Debug.Log("감지된 카메라 : " + device.name + " / 전면 : " + device.isFrontFacing);
+        }
+
+        if (devices.Length == 0)
+        {
+            Debug.LogError("연결된 카메라 없음");
+            return;
+        }
+
+        // PC : 전면 카메라 없으면 첫 번째 카메라 사용
+        // iPad : 전면 카메라 우선 사용
+        string targetCam = devices[0].name;
         foreach (var device in devices)
         {
             if (device.isFrontFacing)
@@ -31,9 +45,37 @@ public class CameraManager : MonoBehaviour
             }
         }
 
+        Debug.Log("선택된 카메라 : " + targetCam);
+
         _webCamTexture = new WebCamTexture(targetCam, 1080, 1080, 30);
         cameraFeedImage.texture = _webCamTexture;
         _webCamTexture.Play();
+
+        StartCoroutine(WaitForCameraReady());
+    }
+
+    private System.Collections.IEnumerator WaitForCameraReady()
+    {
+        float timeout = 5f; // 5초 대기
+        float elapsed = 0f;
+
+        // 웹캠 width가 0이면 아직 준비 안 된 것
+        while (_webCamTexture.width <= 16)
+        {
+            elapsed += Time.deltaTime;
+
+            if (elapsed >= timeout)
+            {
+                Debug.LogError("카메라 초기화 타임아웃 - width : " + _webCamTexture.width);
+                yield break;
+            }
+
+            yield return null;
+        }
+        Debug.Log("카메라 준비 완료 : " + _webCamTexture.width + "x" + _webCamTexture.height);
+
+        // 준비 완료 후 texture 재연결
+        cameraFeedImage.texture = _webCamTexture;
     }
 
     public void OnCaptureButtonPressed()
@@ -62,6 +104,14 @@ public class CameraManager : MonoBehaviour
     private System.Collections.IEnumerator CaptureSlot(int slotIndex)
     {
         yield return new WaitForEndOfFrame();
+
+        // 웹캠 실행 여부 체크 추가
+        if (!_webCamTexture.isPlaying || _webCamTexture.width <= 16)
+        {
+            Debug.LogWarning("카메라 아직 준비 안 됨");
+            _currentSlot--; // 슬롯 인덱스 되돌리기
+            yield break;
+        }
 
         Texture2D snapshot = new Texture2D(
             _webCamTexture.width,

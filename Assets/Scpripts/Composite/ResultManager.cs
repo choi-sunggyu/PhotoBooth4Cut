@@ -12,6 +12,7 @@ public class ResultManager : MonoBehaviour
 
     void Start()
     {
+        Debug.Log("ResultManager Start 실행됨"); // 추가
         // TextureHolder에서 촬영된 사진 가져오기
         _capturedTextures = TextureHolder.Instance.GetTextures();
         _finalTexture = MergeTextures(_capturedTextures);
