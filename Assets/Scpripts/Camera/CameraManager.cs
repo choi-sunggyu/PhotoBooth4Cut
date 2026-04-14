@@ -133,9 +133,22 @@ public class CameraManager : MonoBehaviour
         return _capturedTextures;
     }
 
+    void OnApplicationPause(bool paused)
+    {
+        if (_webCamTexture == null) return;
+
+        if (paused)
+            _webCamTexture.Stop();
+        else
+            _webCamTexture.Play();
+    }
+
     void OnDestroy()
     {
-        if (_webCamTexture != null && _webCamTexture.isPlaying)
+        if (_webCamTexture != null)
+        {
             _webCamTexture.Stop();
+            _webCamTexture = null;
+        }
     }
 }

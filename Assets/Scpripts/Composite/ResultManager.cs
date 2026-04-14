@@ -21,32 +21,31 @@ public class ResultManager : MonoBehaviour
 
     private Texture2D MergeTextures(Texture2D[] textures)
     {
-        int slotWidth  = 400;
-        int slotHeight = 600;
-        int padding    = 10;
+        int frameWidth  = 1060;
+        int frameHeight = 3187;
+        int slotWidth   = 940;
+        int slotHeight  = 629;
+        int slotX       = 60;
 
-        int totalWidth  = slotWidth + padding * 2;
-        int totalHeight = slotHeight * 4 + padding * 5;
+        // 슬롯 Unity Y 좌표 (아래→위)
+        int[] slotYPositions = { 2478, 1819, 1160, 501 };
 
-        Texture2D result = new Texture2D(totalWidth, totalHeight);
+        // 프레임 PNG 로드
+        Texture2D frameTexture = Resources.Load<Texture2D>("Frames/Default/frame_01");
 
-        // 배경 흰색으로 초기화
-        Color[] bg = new Color[totalWidth * totalHeight];
-        for (int i = 0; i < bg.Length; i++) bg[i] = Color.white;
-        result.SetPixels(bg);
+        // 결과 텍스처 생성
+        Texture2D result = new Texture2D(frameWidth, frameHeight, TextureFormat.RGBA32, false);
 
+        // 프레임을 베이스로 복사
+        result.SetPixels(frameTexture.GetPixels());
+
+        // 각 슬롯에 사진 합성
         for (int i = 0; i < textures.Length; i++)
         {
             if (textures[i] == null) continue;
 
-            // 각 슬롯 크기로 리사이즈
             Texture2D resized = ResizeTexture(textures[i], slotWidth, slotHeight);
-
-            int x = padding;
-            // 위에서부터 채워야 하므로 y 계산 반전
-            int y = totalHeight - (slotHeight + padding) * (i + 1);
-
-            result.SetPixels(x, y, slotWidth, slotHeight, resized.GetPixels());
+            result.SetPixels(slotX, slotYPositions[i], slotWidth, slotHeight, resized.GetPixels());
         }
 
         result.Apply();
