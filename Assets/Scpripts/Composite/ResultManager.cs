@@ -312,9 +312,22 @@ public class ResultManager : MonoBehaviour
         int frameWidth  = 1200;
         int frameHeight = 1800;
 
-        Texture2D frameSource = Resources.Load<Texture2D>(
-            "Frames/Default/" + FrameHolder.Instance.GetFrame()
-        );
+        Texture2D frameSource;
+
+        if (FrameHolder.Instance.IsCustomFrame())
+        {
+            byte[] fileData = System.IO.File.ReadAllBytes(
+                FrameHolder.Instance.GetCustomPath()
+            );
+            frameSource = new Texture2D(2, 2);
+            frameSource.LoadImage(fileData);
+        }
+        else
+        {
+            frameSource = Resources.Load<Texture2D>(
+                "Frames/Default/" + FrameHolder.Instance.GetFrame()
+            );
+        }
 
         RenderTexture rt = RenderTexture.GetTemporary(frameWidth, frameHeight);
         Graphics.Blit(frameSource, rt);
