@@ -21,7 +21,6 @@ public class ResultManager : MonoBehaviour
 
     [Header("필터")]
     public Transform filterGrid;     // FilterGrid 연결
-    public Slider contrastSlider;
 
     [Header("스티커")]
     public Transform stickerGrid;    // StickerGrid 연결
@@ -40,7 +39,6 @@ public class ResultManager : MonoBehaviour
 
     void Start()
     {
-        // 사진만 따로 합성 보관
         _photoOnlyTexture = MergePhotosOnly(
             TextureHolder.Instance.GetTextures()
         );
@@ -48,23 +46,10 @@ public class ResultManager : MonoBehaviour
         _finalTexture = _baseTexture;
         compositeImage.texture = _finalTexture;
 
-        // 기본 탭 → 프레임
         ShowTab("frame");
-
         LoadFrames();
         LoadFilters();
         LoadStickers();
-
-        // brightnessSlider.minValue = -1f;
-        // brightnessSlider.maxValue = 1f;
-        // brightnessSlider.value    = 0f;
-
-        contrastSlider.minValue = 0.5f;
-        contrastSlider.maxValue = 2f;
-        contrastSlider.value    = 1f;
-
-        //brightnessSlider.onValueChanged.AddListener(OnFilterChanged);
-        contrastSlider.onValueChanged.AddListener(OnFilterChanged);
     }
 
     private Texture2D MergePhotosOnly(Texture2D[] textures)
@@ -111,25 +96,49 @@ public class ResultManager : MonoBehaviour
         foreach (Transform child in frameGrid)
             Destroy(child.gameObject);
 
+        // 기본 프레임
         for (int i = 0; i < _frameNames.Length; i++)
         {
             Texture2D tex = Resources.Load<Texture2D>(
                 "Frames/Default/" + _frameNames[i]
             );
-
-            GameObject item = Instantiate(frameItemPrefab, frameGrid);
-            RawImage preview = item.transform.Find("FramePreviewImage")
-                .GetComponent<RawImage>();
-            preview.texture = tex;
-
             int index = i;
-            item.GetComponent<Button>().onClick.AddListener(() =>
+            CreateFrameGridItem(tex, () =>
             {
                 _selectedFrameIndex = index;
                 FrameHolder.Instance.SetFrame(_frameNames[index]);
                 RefreshComposite();
             });
         }
+
+        // 커스텀 프레임
+        var customPaths = CustomFrameHolder.Instance.GetFramePaths();
+        foreach (var path in customPaths)
+        {
+            if (!System.IO.File.Exists(path)) continue;
+
+            byte[] fileData = System.IO.File.ReadAllBytes(path);
+            Texture2D tex = new Texture2D(2, 2);
+            tex.LoadImage(fileData);
+
+            string captured = path;
+            CreateFrameGridItem(tex, () =>
+            {
+                FrameHolder.Instance.SetCustomFrame(captured);
+                RefreshComposite();
+            });
+        }
+    }
+
+    private void CreateFrameGridItem(Texture2D tex, System.Action onClick)
+    {
+        GameObject item = Instantiate(frameItemPrefab, frameGrid);
+
+        RawImage preview = item.transform.Find("FramePreviewImage")
+            .GetComponent<RawImage>();
+        preview.texture = tex;
+
+        item.GetComponent<Button>().onClick.AddListener(() => onClick());
     }
 
     // ── 필터 로드 ──────────────────────────
@@ -270,64 +279,12 @@ public class ResultManager : MonoBehaviour
         compositeImage.texture = _finalTexture;
     }
 
-    // ── 밝기/대비 조절 ──────────────────────
-    private void OnFilterChanged(float value)
-    {
-        float contrast = contrastSlider.value;
-
-        // 사진에만 대비 적용
-        Color[] pixels = _photoOnlyTexture.GetPixels();
-        Color[] result = new Color[pixels.Length];
-
-        for (int i = 0; i < pixels.Length; i++)
-        {
-            Color c = pixels[i];
-            if (c.a > 0) // 투명 영역 제외
-            {
-                c = new Color(
-                    Mathf.Clamp01((c.r - 0.5f) * contrast + 0.5f),
-                    Mathf.Clamp01((c.g - 0.5f) * contrast + 0.5f),
-                    Mathf.Clamp01((c.b - 0.5f) * contrast + 0.5f),
-                    c.a
-                );
-            }
-            result[i] = c;
-        }
-
-        Texture2D filteredPhoto = new Texture2D(
-            _photoOnlyTexture.width,
-            _photoOnlyTexture.height,
-            TextureFormat.RGBA32, false
-        );
-        filteredPhoto.SetPixels(result);
-        filteredPhoto.Apply();
-
-        // 프레임과 다시 합성
-        _finalTexture = MergeWithFrame(filteredPhoto);
-        compositeImage.texture = _finalTexture;
-    }
-
     private Texture2D MergeWithFrame(Texture2D photoTexture)
     {
         int frameWidth  = 1200;
         int frameHeight = 1800;
 
-        Texture2D frameSource;
-
-        if (FrameHolder.Instance.IsCustomFrame())
-        {
-            byte[] fileData = System.IO.File.ReadAllBytes(
-                FrameHolder.Instance.GetCustomPath()
-            );
-            frameSource = new Texture2D(2, 2);
-            frameSource.LoadImage(fileData);
-        }
-        else
-        {
-            frameSource = Resources.Load<Texture2D>(
-                "Frames/Default/" + FrameHolder.Instance.GetFrame()
-            );
-        }
+        Texture2D frameSource = LoadFrameTexture();
 
         RenderTexture rt = RenderTexture.GetTemporary(frameWidth, frameHeight);
         Graphics.Blit(frameSource, rt);
@@ -360,6 +317,22 @@ public class ResultManager : MonoBehaviour
         result.SetPixels(final);
         result.Apply();
         return result;
+    }
+
+    private Texture2D LoadFrameTexture()
+    {
+        if (FrameHolder.Instance.IsCustomFrame())
+        {
+            byte[] fileData = System.IO.File.ReadAllBytes(
+                FrameHolder.Instance.GetCustomPath()
+            );
+            Texture2D tex = new Texture2D(2, 2);
+            tex.LoadImage(fileData);
+            return tex;
+        }
+        return Resources.Load<Texture2D>(
+            "Frames/Default/" + FrameHolder.Instance.GetFrame()
+        );
     }
 
     // ── 합성 갱신 ──────────────────────────
@@ -419,22 +392,7 @@ public class ResultManager : MonoBehaviour
         int[] slotX = { 40,  610, 40,  610  };
         int[] slotY = { 1035, 1035, 300, 300 };
 
-        Texture2D frameSource;
-
-        if (FrameHolder.Instance.IsCustomFrame())
-        {
-            byte[] fileData = System.IO.File.ReadAllBytes(
-                FrameHolder.Instance.GetCustomPath()
-            );
-            frameSource = new Texture2D(2, 2);
-            frameSource.LoadImage(fileData);
-        }
-        else
-        {
-            frameSource = Resources.Load<Texture2D>(
-                "Frames/Default/" + FrameHolder.Instance.GetFrame()
-            );
-        }
+        Texture2D frameSource = LoadFrameTexture();
 
         RenderTexture rt = RenderTexture.GetTemporary(frameWidth, frameHeight);
         Graphics.Blit(frameSource, rt);
