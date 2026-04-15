@@ -48,7 +48,12 @@ public class CameraManager : MonoBehaviour
 
         Debug.Log("선택된 카메라 : " + targetCam);
 
-        _webCamTexture = new WebCamTexture(targetCam, 1080, 1080, 30);
+        _webCamTexture = new WebCamTexture(
+            targetCam,
+            Screen.width,    // 기기 최대 해상도 사용
+            Screen.height,
+            30
+        );
         cameraFeedImage.texture = _webCamTexture;
         _webCamTexture.Play();
 
@@ -75,6 +80,7 @@ public class CameraManager : MonoBehaviour
         }
         Debug.Log("카메라 준비 완료 : " + _webCamTexture.width + "x" + _webCamTexture.height);
 
+        _webCamTexture.filterMode = FilterMode.Bilinear;
         // 준비 완료 후 texture 재연결
         cameraFeedImage.texture = _webCamTexture;
     }
@@ -120,10 +126,10 @@ public class CameraManager : MonoBehaviour
         Texture2D snapshot = new Texture2D(
             _webCamTexture.width,
             _webCamTexture.height,
-            TextureFormat.RGB24,
+            TextureFormat.RGBA32,
             false
         );
-
+        snapshot.filterMode = FilterMode.Bilinear;
         snapshot.SetPixels(_webCamTexture.GetPixels());
         snapshot.Apply();
 

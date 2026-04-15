@@ -16,16 +16,15 @@ public class ResultManager : MonoBehaviour
     public GameObject stickerContent;
 
     [Header("프레임")]
-    public Transform frameScrollContent;
+    public Transform frameGrid;      // FrameGrid 연결
     public GameObject frameItemPrefab;
 
     [Header("필터")]
-    public Transform filterScrollContent;
-    //public Slider brightnessSlider;
+    public Transform filterGrid;     // FilterGrid 연결
     public Slider contrastSlider;
 
     [Header("스티커")]
-    public Transform stickerScrollContent;
+    public Transform stickerGrid;    // StickerGrid 연결
     public GameObject draggableElementPrefab;
 
     [Header("버튼")]
@@ -37,9 +36,15 @@ public class ResultManager : MonoBehaviour
     private string[] _frameNames = { "frame_01", "frame_02" };
     private int _selectedFrameIndex = 0;
 
+    private Texture2D _photoOnlyTexture;
+
     void Start()
     {
-        _baseTexture = MergeTextures(TextureHolder.Instance.GetTextures());
+        // 사진만 따로 합성 보관
+        _photoOnlyTexture = MergePhotosOnly(
+            TextureHolder.Instance.GetTextures()
+        );
+        _baseTexture  = MergeTextures(TextureHolder.Instance.GetTextures());
         _finalTexture = _baseTexture;
         compositeImage.texture = _finalTexture;
 
@@ -62,6 +67,36 @@ public class ResultManager : MonoBehaviour
         contrastSlider.onValueChanged.AddListener(OnFilterChanged);
     }
 
+    private Texture2D MergePhotosOnly(Texture2D[] textures)
+    {
+        int frameWidth  = 1200;
+        int frameHeight = 1800;
+        int slotWidth   = 550;
+        int slotHeight  = 715;
+
+        int[] slotX = { 40,  610, 40,  610  };
+        int[] slotY = { 1035, 1035, 300, 300 };
+
+        // 투명 배경으로 시작 (프레임 없음)
+        Texture2D result = new Texture2D(
+            frameWidth, frameHeight, TextureFormat.RGBA32, false
+        );
+        Color[] clear = new Color[frameWidth * frameHeight];
+        for (int i = 0; i < clear.Length; i++)
+            clear[i] = Color.clear;
+        result.SetPixels(clear);
+
+        for (int i = 0; i < textures.Length; i++)
+        {
+            if (textures[i] == null) continue;
+            Texture2D resized = CropAndResize(textures[i], slotWidth, slotHeight);
+            result.SetPixels(slotX[i], slotY[i], slotWidth, slotHeight, resized.GetPixels());
+        }
+
+        result.Apply();
+        return result;
+    }
+
     // ── 탭 전환 ──────────────────────────────
     public void ShowTab(string tab)
     {
@@ -73,7 +108,7 @@ public class ResultManager : MonoBehaviour
     // ── 프레임 로드 ──────────────────────────
     private void LoadFrames()
     {
-        foreach (Transform child in frameScrollContent)
+        foreach (Transform child in frameGrid)
             Destroy(child.gameObject);
 
         for (int i = 0; i < _frameNames.Length; i++)
@@ -82,7 +117,7 @@ public class ResultManager : MonoBehaviour
                 "Frames/Default/" + _frameNames[i]
             );
 
-            GameObject item = Instantiate(frameItemPrefab, frameScrollContent);
+            GameObject item = Instantiate(frameItemPrefab, frameGrid);
             RawImage preview = item.transform.Find("FramePreviewImage")
                 .GetComponent<RawImage>();
             preview.texture = tex;
@@ -102,23 +137,30 @@ public class ResultManager : MonoBehaviour
     {
         string[] filterNames = { "원본", "흑백", "세피아", "빈티지", "차갑게", "따뜻하게" };
 
+        foreach (Transform child in filterGrid)
+            Destroy(child.gameObject);
+
         foreach (var name in filterNames)
         {
             GameObject btn = new GameObject(name);
-            btn.transform.SetParent(filterScrollContent);
+            btn.transform.SetParent(filterGrid);
 
             RectTransform rt = btn.AddComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(180, 180);
+            rt.localScale = Vector3.one;
+
+            Image img = btn.AddComponent<Image>();
+            img.color = new Color(0.9f, 0.9f, 0.9f, 1f);
 
             Button button = btn.AddComponent<Button>();
-            Image img = btn.AddComponent<Image>();
 
             GameObject label = new GameObject("Label");
             label.transform.SetParent(btn.transform);
+
             TextMeshProUGUI tmp = label.AddComponent<TextMeshProUGUI>();
-            tmp.text = name;
-            tmp.fontSize = 30;
+            tmp.text      = name;
+            tmp.fontSize  = 35;
             tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color     = Color.black;
 
             RectTransform labelRt = label.GetComponent<RectTransform>();
             labelRt.anchorMin = Vector2.zero;
@@ -134,18 +176,21 @@ public class ResultManager : MonoBehaviour
     // ── 스티커 로드 ──────────────────────────
     private void LoadStickers()
     {
+        foreach (Transform child in stickerGrid)
+            Destroy(child.gameObject);
+
         Texture2D[] stickers = Resources.LoadAll<Texture2D>("DefaultStickers");
 
         foreach (var sticker in stickers)
         {
             GameObject btn = new GameObject(sticker.name);
-            btn.transform.SetParent(stickerScrollContent);
+            btn.transform.SetParent(stickerGrid);
+
+            RectTransform rt = btn.AddComponent<RectTransform>();
+            rt.localScale = Vector3.one;
 
             RawImage img = btn.AddComponent<RawImage>();
             img.texture = sticker;
-
-            RectTransform rt = btn.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(180, 180);
 
             Button button = btn.AddComponent<Button>();
             Texture2D captured = sticker;
@@ -171,7 +216,8 @@ public class ResultManager : MonoBehaviour
             _baseTexture.height
         );
 
-        Color[] pixels = _baseTexture.GetPixels();
+        // 수정 ✅ → 사진에만 필터 적용
+        Color[] pixels = _photoOnlyTexture.GetPixels();
 
         for (int i = 0; i < pixels.Length; i++)
         {
@@ -220,51 +266,95 @@ public class ResultManager : MonoBehaviour
 
         filtered.SetPixels(pixels);
         filtered.Apply();
-        _finalTexture = filtered;
+        _finalTexture = MergeWithFrame(filtered);
         compositeImage.texture = _finalTexture;
     }
 
     // ── 밝기/대비 조절 ──────────────────────
     private void OnFilterChanged(float value)
     {
-        //float brightness = brightnessSlider.value;
-        //float contrast   = contrastSlider.value;
         float contrast = contrastSlider.value;
 
-        Color[] pixels = _baseTexture.GetPixels();
+        // 사진에만 대비 적용
+        Color[] pixels = _photoOnlyTexture.GetPixels();
         Color[] result = new Color[pixels.Length];
 
         for (int i = 0; i < pixels.Length; i++)
         {
             Color c = pixels[i];
-            // 밝기
-            c = new Color(
-                Mathf.Clamp01((c.r - 0.5f) * contrast + 0.5f),
-                Mathf.Clamp01((c.g - 0.5f) * contrast + 0.5f),
-                Mathf.Clamp01((c.b - 0.5f) * contrast + 0.5f),
-                // Mathf.Clamp01(c.r + brightness),
-                // Mathf.Clamp01(c.g + brightness),
-                // Mathf.Clamp01(c.b + brightness),
-                c.a
-            );
+            if (c.a > 0) // 투명 영역 제외
+            {
+                c = new Color(
+                    Mathf.Clamp01((c.r - 0.5f) * contrast + 0.5f),
+                    Mathf.Clamp01((c.g - 0.5f) * contrast + 0.5f),
+                    Mathf.Clamp01((c.b - 0.5f) * contrast + 0.5f),
+                    c.a
+                );
+            }
             result[i] = c;
         }
 
-        Texture2D adjusted = new Texture2D(
-            _baseTexture.width,
-            _baseTexture.height
+        Texture2D filteredPhoto = new Texture2D(
+            _photoOnlyTexture.width,
+            _photoOnlyTexture.height,
+            TextureFormat.RGBA32, false
         );
-        adjusted.SetPixels(result);
-        adjusted.Apply();
-        _finalTexture = adjusted;
+        filteredPhoto.SetPixels(result);
+        filteredPhoto.Apply();
+
+        // 프레임과 다시 합성
+        _finalTexture = MergeWithFrame(filteredPhoto);
         compositeImage.texture = _finalTexture;
+    }
+
+    private Texture2D MergeWithFrame(Texture2D photoTexture)
+    {
+        int frameWidth  = 1200;
+        int frameHeight = 1800;
+
+        Texture2D frameSource = Resources.Load<Texture2D>(
+            "Frames/Default/" + FrameHolder.Instance.GetFrame()
+        );
+
+        RenderTexture rt = RenderTexture.GetTemporary(frameWidth, frameHeight);
+        Graphics.Blit(frameSource, rt);
+        RenderTexture.active = rt;
+
+        Texture2D frameTexture = new Texture2D(
+            frameWidth, frameHeight, TextureFormat.RGBA32, false
+        );
+        frameTexture.ReadPixels(new Rect(0, 0, frameWidth, frameHeight), 0, 0);
+        frameTexture.Apply();
+
+        RenderTexture.active = null;
+        RenderTexture.ReleaseTemporary(rt);
+
+        // 사진을 먼저 깔고 프레임을 위에 올리기
+        Color[] photoPixels = photoTexture.GetPixels();
+        Color[] framePixels = frameTexture.GetPixels();
+        Color[] final       = new Color[photoPixels.Length];
+
+        for (int i = 0; i < final.Length; i++)
+        {
+            // 프레임 픽셀이 투명하면 사진 픽셀 사용
+            if (framePixels[i].a < 0.1f)
+                final[i] = photoPixels[i];
+            else
+                final[i] = framePixels[i];
+        }
+
+        Texture2D result = new Texture2D(frameWidth, frameHeight, TextureFormat.RGBA32, false);
+        result.SetPixels(final);
+        result.Apply();
+        return result;
     }
 
     // ── 합성 갱신 ──────────────────────────
     private void RefreshComposite()
     {
-        _baseTexture = MergeTextures(TextureHolder.Instance.GetTextures());
-        _finalTexture = _baseTexture;
+        _photoOnlyTexture = MergePhotosOnly(TextureHolder.Instance.GetTextures());
+        _baseTexture      = MergeTextures(TextureHolder.Instance.GetTextures());
+        _finalTexture     = _baseTexture;
         compositeImage.texture = _finalTexture;
     }
 
@@ -381,12 +471,14 @@ public class ResultManager : MonoBehaviour
     private Texture2D ResizeTexture(Texture2D source, int width, int height)
     {
         RenderTexture rt = RenderTexture.GetTemporary(width, height);
+        rt.filterMode = FilterMode.Bilinear;
         Graphics.Blit(source, rt);
 
         RenderTexture prev = RenderTexture.active;
         RenderTexture.active = rt;
 
         Texture2D result = new Texture2D(width, height);
+        result.filterMode = FilterMode.Bilinear;
         result.ReadPixels(new Rect(0, 0, width, height), 0, 0);
         result.Apply();
 
