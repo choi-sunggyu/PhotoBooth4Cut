@@ -112,6 +112,11 @@ public class FrameEditor : MonoBehaviour
     {
         _bgColor = color;
         backgroundLayer.color = color;
+
+        // FrameHoleLayer는 항상 투명 유지
+        Color frameColor = frameHoleLayer.color;
+        frameColor.a = 0.3f; // 가이드라인만 보이게
+        frameHoleLayer.color = frameColor;
     }
 
     // ── 이미지 불러오기 ───────────────────
@@ -134,10 +139,25 @@ public class FrameEditor : MonoBehaviour
         GameObject element = Instantiate(
             draggableElementPrefab, contentLayer
         );
+
         RawImage img = element.GetComponent<RawImage>();
         if (img == null) img = element.AddComponent<RawImage>();
         img.texture = tex;
-        element.GetComponent<RectTransform>().localPosition = Vector3.zero;
+
+        // 이미지 비율 유지하면서 EditorArea에 맞게 크기 조절
+        RectTransform rt = element.GetComponent<RectTransform>();
+        float ratio = (float)tex.width / tex.height;
+
+        if (ratio > 1f)
+        {
+            rt.sizeDelta = new Vector2(800, 800 / ratio);
+        }
+        else
+        {
+            rt.sizeDelta = new Vector2(800 * ratio, 800);
+        }
+
+        rt.localPosition = Vector3.zero;
     }
 
     private void SpawnSticker(Texture2D tex)
@@ -187,31 +207,43 @@ public class FrameEditor : MonoBehaviour
     {
         yield return new WaitForEndOfFrame();
 
-        // EditorArea를 RenderTexture로 캡처
-        RenderTexture rt = new RenderTexture(1200, 1800, 24);
-        Camera cam = Camera.main;
-        cam.targetTexture = rt;
-        cam.Render();
+        // EditorArea RectTransform 기준으로 캡처
+        RectTransform editorRect = backgroundLayer.GetComponent<RectTransform>()
+            .parent.GetComponent<RectTransform>();
 
-        RenderTexture.active = rt;
-        Texture2D saved = new Texture2D(1200, 1800, TextureFormat.RGBA32, false);
-        saved.ReadPixels(new Rect(0, 0, 1200, 1800), 0, 0);
+        Vector3[] corners = new Vector3[4];
+        editorRect.GetWorldCorners(corners);
+
+        int x      = Mathf.RoundToInt(corners[0].x);
+        int y      = Mathf.RoundToInt(corners[0].y);
+        int width  = Mathf.RoundToInt(corners[2].x - corners[0].x);
+        int height = Mathf.RoundToInt(corners[2].y - corners[0].y);
+
+        Texture2D saved = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        saved.ReadPixels(new Rect(x, y, width, height), 0, 0);
         saved.Apply();
 
-        cam.targetTexture = null;
-        RenderTexture.active = null;
-        Destroy(rt);
+        // 1200x1800으로 리사이즈
+        RenderTexture rt = RenderTexture.GetTemporary(1200, 1800);
+        Graphics.Blit(saved, rt);
+        RenderTexture.active = rt;
 
-        // 커스텀 프레임으로 저장
-        byte[] png = saved.EncodeToPNG();
+        Texture2D resized = new Texture2D(1200, 1800, TextureFormat.RGBA32, false);
+        resized.ReadPixels(new Rect(0, 0, 1200, 1800), 0, 0);
+        resized.Apply();
+
+        RenderTexture.active = null;
+        RenderTexture.ReleaseTemporary(rt);
+
+        // 저장
+        byte[] png = resized.EncodeToPNG();
         string fileName = "custom_frame_" + System.DateTime.Now.Ticks + ".png";
         string path = Path.Combine(Application.persistentDataPath, fileName);
         File.WriteAllBytes(path, png);
 
-        // CustomFrameHolder에 등록
         CustomFrameHolder.Instance.AddFrame(path);
-
         Debug.Log("프레임 저장 완료 : " + path);
+
         SceneManager.LoadScene("MainScene");
     }
 

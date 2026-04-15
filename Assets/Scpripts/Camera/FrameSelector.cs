@@ -17,6 +17,7 @@ public class FrameSelector : MonoBehaviour
     void Start()
     {
         LoadFrames();
+        LoadCustomFrames();
         SelectFrame(0);
     }
 
@@ -39,6 +40,37 @@ public class FrameSelector : MonoBehaviour
 
             int index = _frameNames.Length + i;
             CreateFrameItem(tex, index, true);
+        }
+    }
+
+    private void LoadCustomFrames()
+    {
+        var customPaths = CustomFrameHolder.Instance.GetFramePaths();
+        if (customPaths.Count == 0) return;
+
+        for (int i = 0; i < customPaths.Count; i++)
+        {
+            byte[] fileData = System.IO.File.ReadAllBytes(customPaths[i]);
+            Texture2D tex = new Texture2D(2, 2);
+            tex.LoadImage(fileData);
+
+            GameObject item = Instantiate(frameItemPrefab, scrollContent);
+            _frameItems.Add(item);
+
+            RawImage preview = item.transform.Find("FramePreviewImage")
+                .GetComponent<RawImage>();
+            preview.texture = tex;
+
+            int index = _frameNames.Length + i;
+            string path = customPaths[i];
+
+            item.GetComponent<UnityEngine.UI.Button>()
+                .onClick.AddListener(() =>
+                {
+                    SelectFrame(index, true);
+                    // 커스텀 프레임은 경로로 직접 로드
+                    FrameHolder.Instance.SetCustomFrame(path);
+                });
         }
     }
 
