@@ -7,7 +7,7 @@ using System.IO;
 public class FrameEditor : MonoBehaviour
 {
     [Header("에디터 영역")]
-    public Image backgroundLayer;
+    public Transform captionLayer;
     public Transform contentLayer;
     public Image frameHoleLayer;
 
@@ -23,7 +23,6 @@ public class FrameEditor : MonoBehaviour
     [Header("스티커 그리드")]
     public Transform stickerGridContent;
 
-    private Color _bgColor = Color.white;
 
     // 기본 제공 색상 팔레트
     private Color[] _palette = new Color[]
@@ -78,8 +77,31 @@ public class FrameEditor : MonoBehaviour
 
             Button button = btn.AddComponent<Button>();
             Color captured = col;
-            button.onClick.AddListener(() => SetBackgroundColor(captured));
+            button.onClick.AddListener(() => SetFrameColor(captured));
         }
+    }
+
+    public void OnAddCaptionButtonPressed()
+    {
+        if (string.IsNullOrEmpty(textInputField.text)) return;
+
+        GameObject textObj = new GameObject("CaptionElement");
+        textObj.transform.SetParent(captionLayer);
+
+        TextMeshProUGUI tmp = textObj.AddComponent<TextMeshProUGUI>();
+        tmp.text      = textInputField.text;
+        tmp.fontSize  = 60;
+        tmp.color     = Color.black;
+        tmp.alignment = TextAlignmentOptions.Center;
+
+        RectTransform rt = textObj.GetComponent<RectTransform>();
+        rt.sizeDelta     = new Vector2(500, 100);
+        rt.localPosition = Vector3.zero;
+        rt.localScale    = Vector3.one;
+
+        textObj.AddComponent<DraggableElement>(); // 드래그 가능하게
+        textInputField.text = "";
+        ShowSubPanel("");
     }
 
     // ── 스티커 로드 ──────────────────────
@@ -108,15 +130,10 @@ public class FrameEditor : MonoBehaviour
     }
 
     // ── 배경색 설정 ──────────────────────
-    private void SetBackgroundColor(Color color)
+    private void SetFrameColor(Color color)
     {
-        _bgColor = color;
-        backgroundLayer.color = color;
-
-        // FrameHoleLayer는 항상 투명 유지
-        Color frameColor = frameHoleLayer.color;
-        frameColor.a = 0.3f; // 가이드라인만 보이게
-        frameHoleLayer.color = frameColor;
+        color.a = frameHoleLayer.color.a;
+        frameHoleLayer.color = color;
     }
 
     // ── 이미지 불러오기 ───────────────────
@@ -208,7 +225,7 @@ public class FrameEditor : MonoBehaviour
         yield return new WaitForEndOfFrame();
 
         // EditorArea RectTransform 기준으로 캡처
-        RectTransform editorRect = backgroundLayer.GetComponent<RectTransform>()
+        RectTransform editorRect = frameHoleLayer.GetComponent<RectTransform>()
             .parent.GetComponent<RectTransform>();
 
         Vector3[] corners = new Vector3[4];

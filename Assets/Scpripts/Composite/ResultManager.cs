@@ -39,6 +39,7 @@ public class ResultManager : MonoBehaviour
 
     void Start()
     {
+        // FrameHolder에서 현재 선택된 프레임 기준으로 합성
         _photoOnlyTexture = MergePhotosOnly(
             TextureHolder.Instance.GetTextures()
         );
@@ -46,10 +47,28 @@ public class ResultManager : MonoBehaviour
         _finalTexture = _baseTexture;
         compositeImage.texture = _finalTexture;
 
+        // 현재 선택된 프레임 인덱스 동기화
+        SyncSelectedFrame();
+
         ShowTab("frame");
         LoadFrames();
         LoadFilters();
         LoadStickers();
+    }
+
+    private void SyncSelectedFrame()
+    {
+        if (FrameHolder.Instance.IsCustomFrame()) return;
+
+        string currentFrame = FrameHolder.Instance.GetFrame();
+        for (int i = 0; i < _frameNames.Length; i++)
+        {
+            if (_frameNames[i] == currentFrame)
+            {
+                _selectedFrameIndex = i;
+                break;
+            }
+        }
     }
 
     private Texture2D MergePhotosOnly(Texture2D[] textures)
@@ -284,36 +303,44 @@ public class ResultManager : MonoBehaviour
         int frameWidth  = 1200;
         int frameHeight = 1800;
 
-        Texture2D frameSource = LoadFrameTexture();
+        Texture2D frameTexture = LoadFrameTexture();
 
-        RenderTexture rt = RenderTexture.GetTemporary(frameWidth, frameHeight);
-        Graphics.Blit(frameSource, rt);
+        // ✅ ARGB32 명시 → 알파 채널 보존
+        RenderTexture rt = RenderTexture.GetTemporary(
+            frameWidth, frameHeight, 0, RenderTextureFormat.ARGB32
+        );
+        Graphics.Blit(frameTexture, rt);
         RenderTexture.active = rt;
 
-        Texture2D frameTexture = new Texture2D(
+        Texture2D resizedFrame = new Texture2D(
             frameWidth, frameHeight, TextureFormat.RGBA32, false
         );
-        frameTexture.ReadPixels(new Rect(0, 0, frameWidth, frameHeight), 0, 0);
-        frameTexture.Apply();
+        resizedFrame.ReadPixels(new Rect(0, 0, frameWidth, frameHeight), 0, 0);
+        resizedFrame.Apply();
 
         RenderTexture.active = null;
         RenderTexture.ReleaseTemporary(rt);
 
-        // 사진을 먼저 깔고 프레임을 위에 올리기
         Color[] photoPixels = photoTexture.GetPixels();
-        Color[] framePixels = frameTexture.GetPixels();
+        Color[] framePixels = resizedFrame.GetPixels();
         Color[] final       = new Color[photoPixels.Length];
 
         for (int i = 0; i < final.Length; i++)
         {
-            // 프레임 픽셀이 투명하면 사진 픽셀 사용
-            if (framePixels[i].a < 0.1f)
+            // 알파값 0.5 기준으로 투명/불투명 판단
+            if (framePixels[i].a < 0.5f)
                 final[i] = photoPixels[i];
             else
-                final[i] = framePixels[i];
+                final[i] = Color.Lerp(
+                    photoPixels[i],
+                    framePixels[i],
+                    framePixels[i].a
+                );
         }
 
-        Texture2D result = new Texture2D(frameWidth, frameHeight, TextureFormat.RGBA32, false);
+        Texture2D result = new Texture2D(
+            frameWidth, frameHeight, TextureFormat.RGBA32, false
+        );
         result.SetPixels(final);
         result.Apply();
         return result;
@@ -321,18 +348,41 @@ public class ResultManager : MonoBehaviour
 
     private Texture2D LoadFrameTexture()
     {
+        Texture2D tex;
+
         if (FrameHolder.Instance.IsCustomFrame())
         {
             byte[] fileData = System.IO.File.ReadAllBytes(
                 FrameHolder.Instance.GetCustomPath()
             );
-            Texture2D tex = new Texture2D(2, 2);
+            tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             tex.LoadImage(fileData);
-            return tex;
         }
-        return Resources.Load<Texture2D>(
-            "Frames/Default/" + FrameHolder.Instance.GetFrame()
+        else
+        {
+            tex = Resources.Load<Texture2D>(
+                "Frames/Default/" + FrameHolder.Instance.GetFrame()
+            );
+        }
+
+        // 읽기 가능한 텍스처로 변환
+        RenderTexture rt = RenderTexture.GetTemporary(
+            tex.width, tex.height, 0,
+            RenderTextureFormat.ARGB32
         );
+        Graphics.Blit(tex, rt);
+        RenderTexture.active = rt;
+
+        Texture2D result = new Texture2D(
+            tex.width, tex.height, TextureFormat.RGBA32, false
+        );
+        result.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
+        result.Apply();
+
+        RenderTexture.active = null;
+        RenderTexture.ReleaseTemporary(rt);
+
+        return result;
     }
 
     // ── 합성 갱신 ──────────────────────────
@@ -394,7 +444,9 @@ public class ResultManager : MonoBehaviour
 
         Texture2D frameSource = LoadFrameTexture();
 
-        RenderTexture rt = RenderTexture.GetTemporary(frameWidth, frameHeight);
+        RenderTexture rt = RenderTexture.GetTemporary(
+            frameWidth, frameHeight, 0, RenderTextureFormat.ARGB32
+        );
         Graphics.Blit(frameSource, rt);
         RenderTexture.active = rt;
 
