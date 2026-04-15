@@ -30,6 +30,12 @@ public class ResultManager : MonoBehaviour
     public Button saveButton;
     public Button shareButton;
 
+    // 프레임/슬롯 상수 (여러 메서드에서 공유)
+    private const int FrameW  = 1200, FrameH  = 1800;
+    private const int SlotW   = 550,  SlotH   = 715;
+    private static readonly int[] SlotX = { 40,  610, 40,  610 };
+    private static readonly int[] SlotY = { 1035, 1035, 300, 300 };
+
     private Texture2D _finalTexture;
     private Texture2D _baseTexture;
     private string[] _frameNames = { "frame_01", "frame_02" };
@@ -37,13 +43,15 @@ public class ResultManager : MonoBehaviour
 
     private Texture2D _photoOnlyTexture;
 
+    // 프레임 텍스처 캐시 (프레임이 바뀔 때만 재로드)
+    private Texture2D _cachedFrameTexture;
+    private string    _cachedFrameKey = "";
+
     void Start()
     {
         // FrameHolder에서 현재 선택된 프레임 기준으로 합성
-        _photoOnlyTexture = MergePhotosOnly(
-            TextureHolder.Instance.GetTextures()
-        );
-        _baseTexture  = MergeTextures(TextureHolder.Instance.GetTextures());
+        _photoOnlyTexture = MergePhotosOnly(TextureHolder.Instance.GetTextures());
+        _baseTexture  = MergeWithFrame(_photoOnlyTexture);
         _finalTexture = _baseTexture;
         compositeImage.texture = _finalTexture;
 
@@ -73,30 +81,15 @@ public class ResultManager : MonoBehaviour
 
     private Texture2D MergePhotosOnly(Texture2D[] textures)
     {
-        int frameWidth  = 1200;
-        int frameHeight = 1800;
-        int slotWidth   = 550;
-        int slotHeight  = 715;
-
-        int[] slotX = { 40,  610, 40,  610  };
-        int[] slotY = { 1035, 1035, 300, 300 };
-
-        // 투명 배경으로 시작 (프레임 없음)
-        Texture2D result = new Texture2D(
-            frameWidth, frameHeight, TextureFormat.RGBA32, false
-        );
-        Color[] clear = new Color[frameWidth * frameHeight];
-        for (int i = 0; i < clear.Length; i++)
-            clear[i] = Color.clear;
-        result.SetPixels(clear);
-
+        Texture2D result = new Texture2D(FrameW, FrameH, TextureFormat.RGBA32, false);
+        Color[] clear = new Color[FrameW * FrameH];
+        result.SetPixels(clear); // Color() 기본값이 (0,0,0,0) = clear
         for (int i = 0; i < textures.Length; i++)
         {
             if (textures[i] == null) continue;
-            Texture2D resized = CropAndResize(textures[i], slotWidth, slotHeight);
-            result.SetPixels(slotX[i], slotY[i], slotWidth, slotHeight, resized.GetPixels());
+            Texture2D resized = CropAndResize(textures[i], SlotW, SlotH);
+            result.SetPixels(SlotX[i], SlotY[i], SlotW, SlotH, resized.GetPixels());
         }
-
         result.Apply();
         return result;
     }
@@ -240,8 +233,7 @@ public class ResultManager : MonoBehaviour
     private void ApplyFilter(string filterName)
     {
         Texture2D filtered = new Texture2D(
-            _baseTexture.width,
-            _baseTexture.height
+            _baseTexture.width, _baseTexture.height, TextureFormat.RGBA32, false
         );
 
         // 수정 ✅ → 사진에만 필터 적용
@@ -298,99 +290,71 @@ public class ResultManager : MonoBehaviour
         compositeImage.texture = _finalTexture;
     }
 
-    private Texture2D MergeWithFrame(Texture2D photoTexture)
+    private Texture2D MergeWithFrame(Texture2D filteredPhotoTexture)
     {
-        int frameWidth  = 1200;
-        int frameHeight = 1800;
+        Texture2D result = new Texture2D(FrameW, FrameH, TextureFormat.RGBA32, false);
+        result.SetPixels(LoadFrameTexture().GetPixels());
 
-        Texture2D frameTexture = LoadFrameTexture();
-
-        // ✅ ARGB32 명시 → 알파 채널 보존
-        RenderTexture rt = RenderTexture.GetTemporary(
-            frameWidth, frameHeight, 0, RenderTextureFormat.ARGB32
-        );
-        Graphics.Blit(frameTexture, rt);
-        RenderTexture.active = rt;
-
-        Texture2D resizedFrame = new Texture2D(
-            frameWidth, frameHeight, TextureFormat.RGBA32, false
-        );
-        resizedFrame.ReadPixels(new Rect(0, 0, frameWidth, frameHeight), 0, 0);
-        resizedFrame.Apply();
-
-        RenderTexture.active = null;
-        RenderTexture.ReleaseTemporary(rt);
-
-        Color[] photoPixels = photoTexture.GetPixels();
-        Color[] framePixels = resizedFrame.GetPixels();
-        Color[] final       = new Color[photoPixels.Length];
-
-        for (int i = 0; i < final.Length; i++)
+        for (int i = 0; i < SlotX.Length; i++)
         {
-            // 알파값 0.5 기준으로 투명/불투명 판단
-            if (framePixels[i].a < 0.5f)
-                final[i] = photoPixels[i];
-            else
-                final[i] = Color.Lerp(
-                    photoPixels[i],
-                    framePixels[i],
-                    framePixels[i].a
-                );
+            Color[] slotPixels = filteredPhotoTexture.GetPixels(
+                SlotX[i], SlotY[i], SlotW, SlotH
+            );
+            result.SetPixels(SlotX[i], SlotY[i], SlotW, SlotH, slotPixels);
         }
 
-        Texture2D result = new Texture2D(
-            frameWidth, frameHeight, TextureFormat.RGBA32, false
-        );
-        result.SetPixels(final);
         result.Apply();
         return result;
     }
 
     private Texture2D LoadFrameTexture()
     {
-        Texture2D tex;
+        // 같은 프레임이면 캐시 반환
+        string key = FrameHolder.Instance.IsCustomFrame()
+            ? FrameHolder.Instance.GetCustomPath()
+            : FrameHolder.Instance.GetFrame();
 
+        if (_cachedFrameTexture != null && _cachedFrameKey == key)
+            return _cachedFrameTexture;
+
+        Texture2D tex;
         if (FrameHolder.Instance.IsCustomFrame())
         {
-            byte[] fileData = System.IO.File.ReadAllBytes(
-                FrameHolder.Instance.GetCustomPath()
-            );
+            byte[] fileData = File.ReadAllBytes(key);
             tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             tex.LoadImage(fileData);
         }
         else
         {
-            tex = Resources.Load<Texture2D>(
-                "Frames/Default/" + FrameHolder.Instance.GetFrame()
-            );
+            tex = Resources.Load<Texture2D>("Frames/Default/" + key);
         }
 
         // 읽기 가능한 텍스처로 변환
         RenderTexture rt = RenderTexture.GetTemporary(
-            tex.width, tex.height, 0,
-            RenderTextureFormat.ARGB32
+            tex.width, tex.height, 0, RenderTextureFormat.ARGB32
         );
         Graphics.Blit(tex, rt);
         RenderTexture.active = rt;
 
-        Texture2D result = new Texture2D(
-            tex.width, tex.height, TextureFormat.RGBA32, false
-        );
+        Texture2D result = new Texture2D(tex.width, tex.height, TextureFormat.RGBA32, false);
         result.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
         result.Apply();
 
         RenderTexture.active = null;
         RenderTexture.ReleaseTemporary(rt);
 
+        _cachedFrameKey     = key;
+        _cachedFrameTexture = result;
         return result;
     }
 
     // ── 합성 갱신 ──────────────────────────
     private void RefreshComposite()
     {
-        _photoOnlyTexture = MergePhotosOnly(TextureHolder.Instance.GetTextures());
-        _baseTexture      = MergeTextures(TextureHolder.Instance.GetTextures());
-        _finalTexture     = _baseTexture;
+        _cachedFrameTexture = null; // 프레임 변경 시 캐시 무효화
+        _photoOnlyTexture   = MergePhotosOnly(TextureHolder.Instance.GetTextures());
+        _baseTexture        = MergeWithFrame(_photoOnlyTexture);
+        _finalTexture       = _baseTexture;
         compositeImage.texture = _finalTexture;
     }
 
@@ -431,50 +395,7 @@ public class ResultManager : MonoBehaviour
             .Share();
     }
 
-    // ── MergeTextures / CropAndResize / ResizeTexture ──
-    private Texture2D MergeTextures(Texture2D[] textures)
-    {
-        int frameWidth  = 1200;
-        int frameHeight = 1800;
-        int slotWidth   = 550;
-        int slotHeight  = 715;
-
-        int[] slotX = { 40,  610, 40,  610  };
-        int[] slotY = { 1035, 1035, 300, 300 };
-
-        Texture2D frameSource = LoadFrameTexture();
-
-        RenderTexture rt = RenderTexture.GetTemporary(
-            frameWidth, frameHeight, 0, RenderTextureFormat.ARGB32
-        );
-        Graphics.Blit(frameSource, rt);
-        RenderTexture.active = rt;
-
-        Texture2D frameTexture = new Texture2D(
-            frameWidth, frameHeight, TextureFormat.RGBA32, false
-        );
-        frameTexture.ReadPixels(new Rect(0, 0, frameWidth, frameHeight), 0, 0);
-        frameTexture.Apply();
-
-        RenderTexture.active = null;
-        RenderTexture.ReleaseTemporary(rt);
-
-        Texture2D result = new Texture2D(
-            frameWidth, frameHeight, TextureFormat.RGBA32, false
-        );
-        result.SetPixels(frameTexture.GetPixels());
-
-        for (int i = 0; i < textures.Length; i++)
-        {
-            if (textures[i] == null) continue;
-            Texture2D resized = CropAndResize(textures[i], slotWidth, slotHeight);
-            result.SetPixels(slotX[i], slotY[i], slotWidth, slotHeight, resized.GetPixels());
-        }
-
-        result.Apply();
-        return result;
-    }
-
+    // ── CropAndResize / ResizeTexture ──
     private Texture2D CropAndResize(Texture2D source, int targetWidth, int targetHeight)
     {
         float targetRatio = (float)targetWidth / targetHeight;

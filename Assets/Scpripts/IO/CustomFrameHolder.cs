@@ -14,7 +14,7 @@ public class CustomFrameHolder : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            LoadFromPrefs(); // 저장된 경로 불러오기
+            LoadFromPrefs();
         }
         else
         {
@@ -24,12 +24,29 @@ public class CustomFrameHolder : MonoBehaviour
 
     public void AddFrame(string path)
     {
-        if (!_customFramePaths.Contains(path))
+        string norm = Normalize(path);
+        if (!_customFramePaths.Exists(p => Normalize(p) == norm))
         {
             _customFramePaths.Add(path);
             SaveToPrefs();
         }
     }
+
+    public void RemoveFramePath(string path)
+    {
+        string norm = Normalize(path);
+        int idx = _customFramePaths.FindIndex(p => Normalize(p) == norm);
+        if (idx < 0)
+        {
+            Debug.LogWarning($"[CustomFrameHolder] 삭제 실패 - 경로 없음: {path}");
+            return;
+        }
+        _customFramePaths.RemoveAt(idx);
+        SaveToPrefs();
+    }
+
+    private static string Normalize(string path) =>
+        path.Replace('\\', '/').ToLowerInvariant();
 
     public List<string> GetFramePaths()
     {
@@ -38,7 +55,6 @@ public class CustomFrameHolder : MonoBehaviour
 
     private void SaveToPrefs()
     {
-        // 경로들을 | 로 구분해서 저장
         string joined = string.Join("|", _customFramePaths);
         PlayerPrefs.SetString(PREFS_KEY, joined);
         PlayerPrefs.Save();
@@ -52,7 +68,6 @@ public class CustomFrameHolder : MonoBehaviour
         string[] paths = saved.Split('|');
         foreach (var path in paths)
         {
-            // 실제 파일 존재 여부 확인
             if (!string.IsNullOrEmpty(path) &&
                 System.IO.File.Exists(path))
             {
