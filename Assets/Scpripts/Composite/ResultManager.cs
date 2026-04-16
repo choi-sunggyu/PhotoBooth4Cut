@@ -29,6 +29,7 @@ public class ResultManager : MonoBehaviour
     [Header("버튼")]
     public Button saveButton;
     public Button shareButton;
+    public Button homeButton;
 
     // 프레임/슬롯 상수 (여러 메서드에서 공유)
     private const int FrameW  = 1200, FrameH  = 1800;
@@ -54,6 +55,7 @@ public class ResultManager : MonoBehaviour
         _baseTexture  = MergeWithFrame(_photoOnlyTexture);
         _finalTexture = _baseTexture;
         compositeImage.texture = _finalTexture;
+        homeButton.onClick.AddListener(OnHomeButtonPressed);
 
         // 현재 선택된 프레임 인덱스 동기화
         SyncSelectedFrame();
@@ -62,6 +64,12 @@ public class ResultManager : MonoBehaviour
         LoadFrames();
         LoadFilters();
         LoadStickers();
+    }
+
+    public void OnHomeButtonPressed()
+    {
+        TextureHolder.Instance.Clear();
+        SceneManager.LoadScene("MainScene");
     }
 
     private void SyncSelectedFrame()

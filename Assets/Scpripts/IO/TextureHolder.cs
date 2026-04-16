@@ -29,4 +29,11 @@ public class TextureHolder : MonoBehaviour
     {
         return _textures;
     }
+
+    public void Clear()
+    {
+        if (_textures == null) return;
+        for (int i = 0; i < _textures.Length; i++)
+            _textures[i] = null;
+    }
 }

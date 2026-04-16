@@ -9,12 +9,12 @@ public class FrameSelector : MonoBehaviour
     public Transform scrollContent;
     public GameObject frameItemPrefab;
     public UnityEngine.UI.Button startButton;
-    public UnityEngine.UI.Button editButton;      // ← 추가: Inspector 연결
+    public UnityEngine.UI.Button editButton;
 
     private string[] _frameNames = { "frame_01", "frame_02" };
     private int _selectedIndex = 0;
     private List<GameObject> _frameItems = new List<GameObject>();
-    private bool _isEditMode = false;             // ← 추가
+    private bool _isEditMode = false;
 
     void Start()
     {
@@ -30,7 +30,7 @@ public class FrameSelector : MonoBehaviour
 
         // 버튼 텍스트 전환
         editButton.GetComponentInChildren<TMPro.TextMeshProUGUI>().text
-            = _isEditMode ? "완료" : "편집";
+            = _isEditMode ? "Save" : "Delete Frames";
 
         // 커스텀 프레임 아이템에만 X 버튼 노출/숨김
         foreach (var item in _frameItems)
@@ -76,7 +76,7 @@ public class FrameSelector : MonoBehaviour
         SelectFrame(0);
     }
 
-    private void CreateFrameItem(
+    private void CreateFrameItem(    
         Texture2D tex, int index, bool isCustom, string path)
     {
         GameObject item = Instantiate(frameItemPrefab, scrollContent);
@@ -90,7 +90,11 @@ public class FrameSelector : MonoBehaviour
         int capturedIndex = _frameItems.Count - 1;
         item.GetComponent<UnityEngine.UI.Button>().onClick.AddListener(() =>
         {
-            if (_isEditMode) return; // 편집 모드 중 선택 차단
+            if (_isEditMode)
+            {
+                if (isCustom) DeleteCustomFrame(path); // ← 커스텀만 삭제
+                return;
+            }
             SelectFrame(capturedIndex, isCustom);
             if (isCustom)
                 FrameHolder.Instance.SetCustomFrame(path);
@@ -120,7 +124,7 @@ public class FrameSelector : MonoBehaviour
         {
             _isEditMode = false;
             editButton.GetComponentInChildren<TMPro.TextMeshProUGUI>().text
-                = "편집";
+                = "Delete Frames";
         }
     }
 
